@@ -111,6 +111,7 @@ except ConnectionError as e:
 
 if es.ping():
     st.success("Successfully connected to Elasticsearch!", icon="✅")
+    st.success("Successfully connected to Elasticsearch!", icon="✅")
 else:
     st.error("Cannot connect to Elasticsearch!")
 
@@ -160,6 +161,19 @@ st.markdown("<h2>4. Search the Indexed Data</h2>", unsafe_allow_html=True)
 search_query = st.text_input("Enter your search query")
 
 if st.button("Search"):
+    model = SentenceTransformer(selected_model)
+    vector_of_input_keyword = model.encode(search_query)
+
+    query = {
+        "field": "DescriptionVector",
+        "query_vector": vector_of_input_keyword,
+        "k": 10,
+        "num_candidates": 500
+    }
+
+    try:
+        res = es.knn_search(index=indexName, knn=query, source=display_columns)
+        results = res["hits"]["hits"]
     model = SentenceTransformer(selected_model)
     vector_of_input_keyword = model.encode(search_query)
 
