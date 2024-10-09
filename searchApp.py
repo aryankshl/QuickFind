@@ -1,17 +1,102 @@
-# Modified code for Streamlit UI in searchApp.py
 import streamlit as st
 from elasticsearch import Elasticsearch
 from sentence_transformers import SentenceTransformer
 import pandas as pd
-from io import StringIO
 
-# Define the list of models to be used for the dropdown
-MODEL_OPTIONS = {
-    'all-mpnet-base-v2': 'all-mpnet-base-v2',
-    'distilbert-base-nli-stsb-mean-tokens': 'distilbert-base-nli-stsb-mean-tokens',
-    'paraphrase-MiniLM-L6-v2': 'paraphrase-MiniLM-L6-v2',
-    'roberta-base-nli-stsb-mean-tokens': 'roberta-base-nli-stsb-mean-tokens'
-}
+# Inject custom CSS for a dark theme and modern web-like feel
+st.markdown(
+    """
+    <style>
+    /* Dark background color for the whole app */
+    .stApp {
+        background-color: #1e1e1e;
+        font-family: 'Roboto', sans-serif;
+        color: #f5f5f5;
+    }
+
+    /* Custom Header Styling */
+    h1, h2, h3 {
+        font-family: 'Poppins', sans-serif;
+        color: #f5f5f5;
+        text-align: center;
+        font-weight: 600;
+        margin-bottom: 20px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* Card-Like Sections */
+    .card {
+        background-color: #2a2a2a;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+    }
+
+    /* Custom Button Styles */
+    .stButton > button {
+        background-color: #007bff;
+        color: white;
+        border-radius: 10px;
+        padding: 10px 20px;
+        font-size: 16px;
+        border: none;
+        transition: background-color 0.3s ease;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .stButton > button:hover {
+        background-color: #0056b3;
+    }
+
+    /* Input Fields Styling (excluding select box) */
+    .stTextInput input {
+        background-color: #333;
+        border: 1px solid #444;
+        border-radius: 10px;
+        padding: 15px;
+        font-size: 16px;
+        color: white;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    /* File Uploader Styling */
+    .stFileUploader {
+        background-color: #333;
+        border-radius: 10px;
+        padding: 20px;
+        border: 1px solid #444;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Styling for search results */
+    .search-result {
+        background-color: #2a2a2a;
+        border: 1px solid #444;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Divider Styling */
+    .css-1y0tads {
+        border-top: 1px solid #444;
+        margin: 20px 0;
+    }
+
+    /* Spacing between elements */
+    .block-container {
+        padding: 30px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# App Title
+st.markdown("<h1>🚀 Modern Search App</h1>", unsafe_allow_html=True)
 
 # Elasticsearch setup
 indexName = "user_uploaded_data"
@@ -25,98 +110,78 @@ except ConnectionError as e:
     st.error(f"Connection Error: {e}")
 
 if es.ping():
-    st.success("Successfully connected to Elasticsearch!")
+    st.success("Successfully connected to Elasticsearch!", icon="✅")
 else:
     st.error("Cannot connect to Elasticsearch!")
 
-# UI: Dropdown for model selection
-st.title("Flexible Search Engine")
+# Model Selection Section (with default styling)
+st.markdown("<h2>1. Select a Model</h2>", unsafe_allow_html=True)
+with st.container():
+    selected_model = st.selectbox("Choose a Sentence Transformer model", ['paraphrase-MiniLM-L6-v2', 'all-mpnet-base-v2'])
 
-st.header("1. Select a model")
-selected_model = st.selectbox("Choose a Sentence Transformer model", list(MODEL_OPTIONS.keys()))
+# File Upload Section
+st.markdown("<h2>2. Upload Your CSV Dataset</h2>", unsafe_allow_html=True)
+with st.container():
+    uploaded_file = st.file_uploader("Choose your CSV file", type="csv")
 
-# UI: File upload for dataset
-st.header("2. Upload your CSV dataset")
-uploaded_file = st.file_uploader("Upload your CSV file", type="csv")
-
-# When the dataset is uploaded
+# If the dataset is uploaded
 if uploaded_file is not None:
     # Load CSV and display a preview
     df = pd.read_csv(uploaded_file)
-
-    # Replace NaN values with the string "none"
     df.fillna("none", inplace=True)
 
-    st.write("Dataset Preview:")
-    st.dataframe(df.head())
+    # Show the data as a preview
+    st.markdown("<h3>Dataset Preview:</h3>", unsafe_allow_html=True)
+    st.dataframe(df.head(), use_container_width=True)
 
-    # Dropdown for column selection
-    st.header("3. Map your dataset columns")
-    text_column = st.selectbox("Select the column for the text data (e.g., description)", df.columns)
-    id_column = st.selectbox("Select the column for the unique ID (e.g., ProductID)", df.columns)
+    # Column Selection Section
+    st.markdown("<h2>3. Customize Search Results</h2>", unsafe_allow_html=True)
+    text_column = st.selectbox("Select the text column (e.g., description)", df.columns)
+    id_column = st.selectbox("Select the unique ID column", df.columns)
+    display_columns = st.multiselect("Choose columns to display in results", df.columns.tolist(), default=[text_column, id_column])
 
-    # Button to process the dataset and index it
+    # Button to Process and Index Dataset
     if st.button("Process and Index Dataset"):
-     st.write("Starting to process the dataset...")  # Progress message
+        st.write("Starting to process the dataset...")
+        model = SentenceTransformer(selected_model)
+        df['DescriptionVector'] = df[text_column].apply(lambda x: model.encode(x, clean_up_tokenization_spaces=False))
+        record_list = df.to_dict("records")
+        if not es.indices.exists(index=indexName):
+            es.indices.create(index=indexName)
+        for record in record_list:
+            try:
+                es.index(index=indexName, document=record, id=record[id_column])
+            except Exception as e:
+                st.error(f"Error: {e}")
+        st.success("Data indexed successfully!", icon="✅")
 
-     # Load the selected model
-     st.write("Loading the selected model...")
-     model = SentenceTransformer(selected_model)
-
-     # Generate vector embeddings for the selected text column
-     st.info(f"Generating embeddings using model: {selected_model}")
-     df['DescriptionVector'] = df[text_column].apply(lambda x: model.encode(x, clean_up_tokenization_spaces=False))
-     st.write("Embeddings generated successfully.")
-
-     # Prepare data for Elasticsearch indexing
-     record_list = df.to_dict("records")
-     st.write("Data prepared for indexing.")
-
-     # Check if index already exists, if not create it
-     if not es.indices.exists(index=indexName):
-         es.indices.create(index=indexName, ignore=400)
-         st.write(f"Created index: {indexName}")
-
-     # Index the data into Elasticsearch
-     for record in record_list:
-         try:
-             es.index(index=indexName, document=record, id=record[id_column])
-             st.write(f"Indexed record with ID: {record[id_column]}")
-         except Exception as e:
-             st.error(f"Error indexing record {record[id_column]}: {e}")
-     
-     st.success("Dataset processed and indexed successfully!")
-
-
-# UI: Search section
-st.header("4. Search the indexed data")
-
-# Input for search query
+# Search Section
+st.markdown("<h2>4. Search the Indexed Data</h2>", unsafe_allow_html=True)
 search_query = st.text_input("Enter your search query")
 
 if st.button("Search"):
-    if search_query:
-        # Perform search
-        model = SentenceTransformer(selected_model)
-        vector_of_input_keyword = model.encode(search_query)
-        
-        query = {
-            "field": "DescriptionVector",
-            "query_vector": vector_of_input_keyword,
-            "k": 10,
-            "num_candidates": 500
-        }
-        
-        try:
-            res = es.knn_search(index=indexName, knn=query, source=["ProductName", text_column])
-            results = res["hits"]["hits"]
+    model = SentenceTransformer(selected_model)
+    vector_of_input_keyword = model.encode(search_query)
 
-            # Display search results
-            st.subheader("Search Results")
-            for result in results:
-                if '_source' in result:
-                    st.header(f"{result['_source'].get('ProductName', 'Unnamed Product')}")
-                    st.write(f"Description: {result['_source'].get(text_column, 'No description available')}")
+    query = {
+        "field": "DescriptionVector",
+        "query_vector": vector_of_input_keyword,
+        "k": 10,
+        "num_candidates": 500
+    }
+
+    try:
+        res = es.knn_search(index=indexName, knn=query, source=display_columns)
+        results = res["hits"]["hits"]
+
+        st.markdown("<h3>Search Results:</h3>", unsafe_allow_html=True)
+        for result in results:
+            if '_source' in result:
+                with st.container():
+                    st.markdown('<div class="search-result">', unsafe_allow_html=True)
+                    for col in display_columns:
+                        st.write(f"**{col}:** {result['_source'].get(col, 'No data available')}")
+                    st.markdown('</div>', unsafe_allow_html=True)
                     st.divider()
-        except Exception as e:
-            st.error(f"Search failed: {e}")
+    except Exception as e:
+        st.error(f"Search failed: {e}")
