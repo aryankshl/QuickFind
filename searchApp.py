@@ -2,6 +2,7 @@ import streamlit as st
 from elasticsearch import Elasticsearch
 from sentence_transformers import SentenceTransformer
 import pandas as pd
+import time  # To simulate time for task completion
 
 # Inject custom CSS for a dark theme and modern web-like feel
 st.markdown(
@@ -98,19 +99,18 @@ st.markdown(
 # App Title
 st.markdown("<h1>🚀 Modern Search App</h1>", unsafe_allow_html=True)
 
-# Elasticsearch setup
+# Elasticsearch setup without CA certs
 indexName = "user_uploaded_data"
 try:
     es = Elasticsearch(
-        "https://localhost:9200",
-        basic_auth=("elastic", "iamaryan"),
-        ca_certs="C:/elasticsearch-8.15.2/config/certs/http_ca.crt"
+        "http://localhost:9200",  # Use HTTP instead of HTTPS to avoid SSL
+        basic_auth=("elastic", "12345678"),
+        verify_certs=False,  # Disable certificate verification
     )
 except ConnectionError as e:
     st.error(f"Connection Error: {e}")
 
 if es.ping():
-    st.success("Successfully connected to Elasticsearch!", icon="✅")
     st.success("Successfully connected to Elasticsearch!", icon="✅")
 else:
     st.error("Cannot connect to Elasticsearch!")
@@ -143,17 +143,35 @@ if uploaded_file is not None:
 
     # Button to Process and Index Dataset
     if st.button("Process and Index Dataset"):
+        progress_bar = st.progress(0)  # Initialize the progress bar
+        progress_text = st.empty()  # Placeholder for numerical percentage
+        
         st.write("Starting to process the dataset...")
         model = SentenceTransformer(selected_model)
+        
+        # Simulate progress
+        for i in range(0, 101, 10):
+            time.sleep(0.2)  # Simulate processing time
+            progress_bar.progress(i)  # Update the progress bar
+            progress_text.text(f"Progress: {i}%")  # Update numerical percentage
+        
         df['DescriptionVector'] = df[text_column].apply(lambda x: model.encode(x, clean_up_tokenization_spaces=False))
         record_list = df.to_dict("records")
+        
         if not es.indices.exists(index=indexName):
             es.indices.create(index=indexName)
-        for record in record_list:
+        
+        for idx, record in enumerate(record_list):
             try:
                 es.index(index=indexName, document=record, id=record[id_column])
             except Exception as e:
                 st.error(f"Error: {e}")
+            
+            # Update progress bar based on number of records
+            progress = int(((idx + 1) / len(record_list)) * 100)
+            progress_bar.progress(progress)
+            progress_text.text(f"Progress: {progress}%")  # Update numerical percentage
+        
         st.success("Data indexed successfully!", icon="✅")
 
 # Search Section
@@ -161,6 +179,9 @@ st.markdown("<h2>4. Search the Indexed Data</h2>", unsafe_allow_html=True)
 search_query = st.text_input("Enter your search query")
 
 if st.button("Search"):
+    progress_bar = st.progress(0)  # Initialize the progress bar for searching
+    progress_text = st.empty()  # Placeholder for numerical percentage
+
     model = SentenceTransformer(selected_model)
     vector_of_input_keyword = model.encode(search_query)
 
@@ -174,20 +195,13 @@ if st.button("Search"):
     try:
         res = es.knn_search(index=indexName, knn=query, source=display_columns)
         results = res["hits"]["hits"]
-    model = SentenceTransformer(selected_model)
-    vector_of_input_keyword = model.encode(search_query)
-
-    query = {
-        "field": "DescriptionVector",
-        "query_vector": vector_of_input_keyword,
-        "k": 10,
-        "num_candidates": 500
-    }
-
-    try:
-        res = es.knn_search(index=indexName, knn=query, source=display_columns)
-        results = res["hits"]["hits"]
-
+        
+        # Simulate progress
+        for i in range(0, 101, 10):
+            time.sleep(0.1)  # Simulate processing time
+            progress_bar.progress(i)  # Update the progress bar
+            progress_text.text(f"Progress: {i}%")  # Update numerical percentage
+        
         st.markdown("<h3>Search Results:</h3>", unsafe_allow_html=True)
         for result in results:
             if '_source' in result:
