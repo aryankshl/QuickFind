@@ -2,6 +2,8 @@ import streamlit as st
 from elasticsearch import Elasticsearch
 from sentence_transformers import SentenceTransformer
 import pandas as pd
+from report_generator import generate_csv, generate_excel, generate_pdf  # Import the functions
+
 
 # Inject custom CSS for a dark theme and modern web-like feel
 st.markdown(
@@ -96,7 +98,7 @@ st.markdown(
 )
 
 # App Title
-st.markdown("<h1>🚀 Modern Search App</h1>", unsafe_allow_html=True)
+st.markdown("<h1>Vector-Fusion Hub</h1>", unsafe_allow_html=True)
 
 # Elasticsearch setup
 indexName = "user_uploaded_data"
@@ -110,7 +112,6 @@ except ConnectionError as e:
     st.error(f"Connection Error: {e}")
 
 if es.ping():
-    st.success("Successfully connected to Elasticsearch!", icon="✅")
     st.success("Successfully connected to Elasticsearch!", icon="✅")
 else:
     st.error("Cannot connect to Elasticsearch!")
@@ -134,6 +135,7 @@ if uploaded_file is not None:
     # Show the data as a preview
     st.markdown("<h3>Dataset Preview:</h3>", unsafe_allow_html=True)
     st.dataframe(df.head(), use_container_width=True)
+
 
     # Column Selection Section
     st.markdown("<h2>3. Customize Search Results</h2>", unsafe_allow_html=True)
@@ -172,30 +174,45 @@ if st.button("Search"):
     }
 
     try:
+        # Perform search and store the results
         res = es.knn_search(index=indexName, knn=query, source=display_columns)
         results = res["hits"]["hits"]
-    model = SentenceTransformer(selected_model)
-    vector_of_input_keyword = model.encode(search_query)
 
-    query = {
-        "field": "DescriptionVector",
-        "query_vector": vector_of_input_keyword,
-        "k": 10,
-        "num_candidates": 500
-    }
-
-    try:
-        res = es.knn_search(index=indexName, knn=query, source=display_columns)
-        results = res["hits"]["hits"]
+        # Convert search results to a DataFrame for easier handling
+        search_results = pd.DataFrame([result['_source'] for result in results])
 
         st.markdown("<h3>Search Results:</h3>", unsafe_allow_html=True)
-        for result in results:
-            if '_source' in result:
-                with st.container():
-                    st.markdown('<div class="search-result">', unsafe_allow_html=True)
-                    for col in display_columns:
-                        st.write(f"**{col}:** {result['_source'].get(col, 'No data available')}")
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    st.divider()
+        st.dataframe(search_results)
+
+        # Section 5: Export the search results
+        st.markdown("<h2>5. Export Search Results</h2>", unsafe_allow_html=True)
+
+        # Download CSV
+        csv_data = generate_csv(search_results)
+        st.download_button(
+            label="Download Search Results as CSV",
+            data=csv_data,
+            file_name='search_results.csv',
+            mime='text/csv',
+        )
+
+        # Download Excel
+        excel_data = generate_excel(search_results)
+        st.download_button(
+            label="Download Search Results as Excel",
+            data=excel_data,
+            file_name='search_results.xlsx',
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+
+        # Download PDF
+        pdf_data = generate_pdf(search_results, search_results.columns.tolist())
+        st.download_button(
+            label="Download Search Results as PDF",
+            data=pdf_data,
+            file_name='search_results.pdf',
+            mime='application/pdf',
+        )
     except Exception as e:
         st.error(f"Search failed: {e}")
+
