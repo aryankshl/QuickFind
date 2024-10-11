@@ -2,9 +2,9 @@
 
 ---
 
-# QuickFind
+# VectorFusion Hub
 
-QuickFind is a Python-based search engine that indexes data and provides an efficient way to search for specific information. It leverages indexing and mapping techniques to enhance the search functionality, allowing for faster and more accurate results.
+VectorFusion Hub is a Python-based search engine that indexes data and provides an efficient way to search for specific information. It leverages indexing and mapping techniques to enhance the search functionality, allowing for faster and more accurate results.
 
 ## Features
 
@@ -49,14 +49,14 @@ QuickFind is a Python-based search engine that indexes data and provides an effi
    Use the `indexData.ipynb` notebook to process and index your dataset.
 
 5. **Run the search application**:
-   Execute the `searchApp.py` script to start the QuickFind search engine:
+   Execute the `searchApp.py` script to start the VectorFusion Hub search engine:
    ```bash
    python searchApp.py
    ```
 
 ## Usage
 
-- After running QuickFind, follow the prompts to input search queries and get relevant results.
+- After running VectorFusion Hub, follow the prompts to input search queries and get relevant results.
 - Customize the search parameters or indexing logic by modifying `indexMapping.py` and `searchApp.py`.
 
 ## Contribution
