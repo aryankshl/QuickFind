@@ -2,7 +2,7 @@ import streamlit as st
 from elasticsearch import Elasticsearch
 from sentence_transformers import SentenceTransformer
 import pandas as pd
-import time  # To simulate time for task completion
+from report_generator import generate_csv, generate_excel, generate_pdf  # Import the functions
 
 # Inject custom CSS for a dark theme and modern web-like feel
 st.markdown(
@@ -97,9 +97,9 @@ st.markdown(
 )
 
 # App Title
-st.markdown("<h1>🚀 Modern Search App</h1>", unsafe_allow_html=True)
+st.markdown("<h1>Vector-Fusion Hub</h1>", unsafe_allow_html=True)
 
-# Elasticsearch setup without CA certs
+# Elasticsearch setup
 indexName = "user_uploaded_data"
 try:
     es = Elasticsearch(
@@ -143,44 +143,45 @@ if uploaded_file is not None:
 
     # Button to Process and Index Dataset
     if st.button("Process and Index Dataset"):
-        progress_bar = st.progress(0)  # Initialize the progress bar
-        progress_text = st.empty()  # Placeholder for numerical percentage
-        
+        progress_bar = st.progress(0)  # Initialize progress bar for data processing
+        progress_text = st.empty()  # Create a placeholder for the percentage text
+        progress_text.text("Progress: 0%")
+
         st.write("Starting to process the dataset...")
+
+        # Load the model
         model = SentenceTransformer(selected_model)
-        
-        # Simulate progress
-        for i in range(0, 101, 10):
-            time.sleep(0.2)  # Simulate processing time
-            progress_bar.progress(i)  # Update the progress bar
-            progress_text.text(f"Progress: {i}%")  # Update numerical percentage
-        
-        df['DescriptionVector'] = df[text_column].apply(lambda x: model.encode(x, clean_up_tokenization_spaces=False))
+        total_rows = len(df)
+
+        # Index each record with progress update
+        df['DescriptionVector'] = df[text_column].apply(lambda x: model.encode(str(x), clean_up_tokenization_spaces=False) if isinstance(x, str) else model.encode("", clean_up_tokenization_spaces=False))
         record_list = df.to_dict("records")
-        
         if not es.indices.exists(index=indexName):
             es.indices.create(index=indexName)
-        
-        for idx, record in enumerate(record_list):
+
+        # Index records with progress
+        for i, record in enumerate(record_list):
             try:
                 es.index(index=indexName, document=record, id=record[id_column])
             except Exception as e:
                 st.error(f"Error: {e}")
             
-            # Update progress bar based on number of records
-            progress = int(((idx + 1) / len(record_list)) * 100)
+            # Update progress bar
+            progress = int((i + 1) / total_rows * 100)
             progress_bar.progress(progress)
-            progress_text.text(f"Progress: {progress}%")  # Update numerical percentage
-        
+            progress_text.text(f"Progress: {progress}%")
+
         st.success("Data indexed successfully!", icon="✅")
+        progress_text.text("Progress: 100%")
 
 # Search Section
 st.markdown("<h2>4. Search the Indexed Data</h2>", unsafe_allow_html=True)
 search_query = st.text_input("Enter your search query")
 
 if st.button("Search"):
-    progress_bar = st.progress(0)  # Initialize the progress bar for searching
-    progress_text = st.empty()  # Placeholder for numerical percentage
+    progress_bar = st.progress(0)  # Initialize progress bar for search
+    progress_text = st.empty()  # Create a placeholder for the percentage text
+    progress_text.text("Progress: 0%")
 
     model = SentenceTransformer(selected_model)
     vector_of_input_keyword = model.encode(search_query)
@@ -193,23 +194,48 @@ if st.button("Search"):
     }
 
     try:
+        # Perform search and store the results
         res = es.knn_search(index=indexName, knn=query, source=display_columns)
         results = res["hits"]["hits"]
-        
-        # Simulate progress
-        for i in range(0, 101, 10):
-            time.sleep(0.1)  # Simulate processing time
-            progress_bar.progress(i)  # Update the progress bar
-            progress_text.text(f"Progress: {i}%")  # Update numerical percentage
-        
+
+        # Update progress bar to 100% when search is complete
+        progress_bar.progress(100)
+        progress_text.text("Progress: 100%")
+
+        # Convert search results to a DataFrame for easier handling
+        search_results = pd.DataFrame([result['_source'] for result in results])
+
         st.markdown("<h3>Search Results:</h3>", unsafe_allow_html=True)
-        for result in results:
-            if '_source' in result:
-                with st.container():
-                    st.markdown('<div class="search-result">', unsafe_allow_html=True)
-                    for col in display_columns:
-                        st.write(f"**{col}:** {result['_source'].get(col, 'No data available')}")
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    st.divider()
+        st.dataframe(search_results)
+
+        # Section 5: Export the search results
+        st.markdown("<h2>5. Export Search Results</h2>", unsafe_allow_html=True)
+
+        # Download CSV
+        csv_data = generate_csv(search_results)
+        st.download_button(
+            label="Download Search Results as CSV",
+            data=csv_data,
+            file_name='search_results.csv',
+            mime='text/csv',
+        )
+
+        # Download Excel
+        excel_data = generate_excel(search_results)
+        st.download_button(
+            label="Download Search Results as Excel",
+            data=excel_data,
+            file_name='search_results.xlsx',
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+
+        # Download PDF
+        pdf_data = generate_pdf(search_results, search_results.columns.tolist())
+        st.download_button(
+            label="Download Search Results as PDF",
+            data=pdf_data,
+            file_name='search_results.pdf',
+            mime='application/pdf',
+        )
     except Exception as e:
         st.error(f"Search failed: {e}")
