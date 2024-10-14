@@ -5,7 +5,7 @@ import pandas as pd
 from report_generator import generate_csv, generate_excel, generate_pdf  # Import the functions
 
 
-# Inject custom CSS for a dark theme and modern web-like feel
+# Injected custom CSS for a dark theme and modern web-like feel
 st.markdown(
     """
     <style>
@@ -215,4 +215,3 @@ if st.button("Search"):
         )
     except Exception as e:
         st.error(f"Search failed: {e}")
-
