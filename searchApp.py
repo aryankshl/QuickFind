@@ -4,7 +4,6 @@ from sentence_transformers import SentenceTransformer
 import pandas as pd
 from report_generator import generate_csv, generate_excel, generate_pdf  # Import the functions
 
-
 # Inject custom CSS for a dark theme and modern web-like feel
 st.markdown(
     """
@@ -104,9 +103,9 @@ st.markdown("<h1>Vector-Fusion Hub</h1>", unsafe_allow_html=True)
 indexName = "user_uploaded_data"
 try:
     es = Elasticsearch(
-        "https://localhost:9200",
-        basic_auth=("elastic", "iamaryan"),
-        ca_certs="C:/elasticsearch-8.15.2/config/certs/http_ca.crt"
+        "http://localhost:9200",  # Use HTTP instead of HTTPS to avoid SSL
+        basic_auth=("elastic", "12345678"),
+        verify_certs=False,  # Disable certificate verification
     )
 except ConnectionError as e:
     st.error(f"Connection Error: {e}")
@@ -136,7 +135,6 @@ if uploaded_file is not None:
     st.markdown("<h3>Dataset Preview:</h3>", unsafe_allow_html=True)
     st.dataframe(df.head(), use_container_width=True)
 
-
     # Column Selection Section
     st.markdown("<h2>3. Customize Search Results</h2>", unsafe_allow_html=True)
     text_column = st.selectbox("Select the text column (e.g., description)", df.columns)
@@ -145,24 +143,46 @@ if uploaded_file is not None:
 
     # Button to Process and Index Dataset
     if st.button("Process and Index Dataset"):
+        progress_bar = st.progress(0)  # Initialize progress bar for data processing
+        progress_text = st.empty()  # Create a placeholder for the percentage text
+        progress_text.text("Progress: 0%")
+
         st.write("Starting to process the dataset...")
+
+        # Load the model
         model = SentenceTransformer(selected_model)
-        df['DescriptionVector'] = df[text_column].apply(lambda x: model.encode(x, clean_up_tokenization_spaces=False))
+        total_rows = len(df)
+
+        # Index each record with progress update
+        df['DescriptionVector'] = df[text_column].apply(lambda x: model.encode(str(x), clean_up_tokenization_spaces=False) if isinstance(x, str) else model.encode("", clean_up_tokenization_spaces=False))
         record_list = df.to_dict("records")
         if not es.indices.exists(index=indexName):
             es.indices.create(index=indexName)
-        for record in record_list:
+
+        # Index records with progress
+        for i, record in enumerate(record_list):
             try:
                 es.index(index=indexName, document=record, id=record[id_column])
             except Exception as e:
                 st.error(f"Error: {e}")
+            
+            # Update progress bar
+            progress = int((i + 1) / total_rows * 100)
+            progress_bar.progress(progress)
+            progress_text.text(f"Progress: {progress}%")
+
         st.success("Data indexed successfully!", icon="✅")
+        progress_text.text("Progress: 100%")
 
 # Search Section
 st.markdown("<h2>4. Search the Indexed Data</h2>", unsafe_allow_html=True)
 search_query = st.text_input("Enter your search query")
 
 if st.button("Search"):
+    progress_bar = st.progress(0)  # Initialize progress bar for search
+    progress_text = st.empty()  # Create a placeholder for the percentage text
+    progress_text.text("Progress: 0%")
+
     model = SentenceTransformer(selected_model)
     vector_of_input_keyword = model.encode(search_query)
 
@@ -177,6 +197,10 @@ if st.button("Search"):
         # Perform search and store the results
         res = es.knn_search(index=indexName, knn=query, source=display_columns)
         results = res["hits"]["hits"]
+
+        # Update progress bar to 100% when search is complete
+        progress_bar.progress(100)
+        progress_text.text("Progress: 100%")
 
         # Convert search results to a DataFrame for easier handling
         search_results = pd.DataFrame([result['_source'] for result in results])
@@ -215,4 +239,3 @@ if st.button("Search"):
         )
     except Exception as e:
         st.error(f"Search failed: {e}")
-
