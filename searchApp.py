@@ -4,8 +4,7 @@ from sentence_transformers import SentenceTransformer
 import pandas as pd
 from report_generator import generate_csv, generate_excel, generate_pdf  # Import the functions
 
-
-# Injected custom CSS for a dark theme and modern web-like feel
+# Inject custom CSS for a dark theme and modern web-like feel
 st.markdown(
     """
     <style>
