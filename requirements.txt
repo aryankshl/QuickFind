@@ -1,6 +1,6 @@
 streamlit==1.25.0
-elasticsearch==8.15.2
+elasticsearch==8.14.0
 sentence-transformers==2.2.2
 pandas==2.1.0
-reportlab==3.6.12  # This is for generating PDFs (used in generate_pdf)
-openpyxl==3.1.2    # This is for generating Excel files (used in generate_excel)
+reportlab==3.6.12
+openpyxl==3.1.2

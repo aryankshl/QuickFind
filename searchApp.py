@@ -103,8 +103,8 @@ st.markdown("<h1>Vector-Fusion Hub</h1>", unsafe_allow_html=True)
 indexName = "user_uploaded_data"
 try:
     es = Elasticsearch(
-        "http://localhost:9200",  # Use HTTP instead of HTTPS to avoid SSL
-        basic_auth=("elastic", "12345678"),
+        "https://localhost:9200",  # Use HTTP instead of HTTPS to avoid SSL
+        basic_auth=("elastic", "iamaryan"),
         verify_certs=False,  # Disable certificate verification
     )
 except ConnectionError as e:
